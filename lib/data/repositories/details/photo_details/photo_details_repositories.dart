@@ -18,4 +18,18 @@ class PhotoDetailsRepositories {
       throw Exception('Failed to load photo details: $e');
     }
   }
+
+  Future<List<dynamic>> getPhotoComments(int id) async {
+    try {
+      final response = await _dio.get(
+        '/posts/$id/comments',
+        options: Options(
+          headers: {'Accept': 'application/json'},
+        ),
+      );
+      return response.data as List<dynamic>;
+    } catch (e) {
+      throw Exception('Failed to load photo details: $e');
+    }
+  }
 }

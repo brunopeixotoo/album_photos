@@ -3,6 +3,8 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:photo/core/network/api_service.dart';
 import 'package:photo/data/repositories/details/photo_details/photo_details_repositories.dart';
 import '../../../../core/core.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 
 class DetailsPhoto extends StatefulWidget {
@@ -11,19 +13,20 @@ class DetailsPhoto extends StatefulWidget {
   @override
   State<DetailsPhoto> createState() => _DetailsPhotoState();
 }
-
 class _DetailsPhotoState extends State<DetailsPhoto> {
   int currentPageIndex = 0;
   Map<String, dynamic> user = {};
+  List<dynamic> comment = [];
   bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    buscarDetalhes();
+    getDetailsAndComments();
   }
-
-  void buscarDetalhes() async {
+  
+  // Fetch phot details and comments when the page is initialized
+  void getDetailsAndComments() async {
     final apiClient = ApiClient();
     final photoDetailsRepositories = PhotoDetailsRepositories(apiClient.client);
 
@@ -34,9 +37,10 @@ class _DetailsPhotoState extends State<DetailsPhoto> {
       setState(() => isLoading = true);
       try {
         final details = await photoDetailsRepositories.getPhotoDetails(id);
+        final comments = await photoDetailsRepositories.getPhotoComments(id);
         setState(() {
           user = details;
-          print('User details: $user');
+          comment = comments;
           isLoading = false;
         });
       } catch (e) {
@@ -45,6 +49,7 @@ class _DetailsPhotoState extends State<DetailsPhoto> {
     }
   }
 
+  // Build the UI for the photo details page
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -54,41 +59,62 @@ class _DetailsPhotoState extends State<DetailsPhoto> {
         backgroundColor: Theme.of(context).primaryColor,
       ),
       bottomNavigationBar: NavigationBar(
-      onDestinationSelected: (int index) {
-        setState(() {
-          currentPageIndex = index;
-        });
-        switch (index) {
-          case 0:
-            Modular.to.pushNamed('/');
-            break;
-          case 1:
-            Modular.to.pushNamed('/');
-            break;
-          case 2:
+        onDestinationSelected: (int index) async {
+          setState(() {
+            currentPageIndex = index;
+          });
+          if (index == 0) {
+            // final lat = user['address']?['geo']?['lat'];
+            // final lng = user['address']?['geo']?['lng'];
+            // if (lat != null && lng != null) {
+            //   final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+            //   if (await canLaunchUrl(url)) {
+            //     if (!mounted) return;
+            //     await launchUrl(url, mode: LaunchMode.externalApplication);
+            //   } else {
+            //     if (!mounted) return;
+            //     ScaffoldMessenger.of(context).showSnackBar(
+            //       SnackBar(content: Text('Não foi possível abrir o Maps')),
+            //     );
+            //   }
+            // } else {
+            //   if (!mounted) return;
+            // }
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Localização não disponível')),
+            );
+          }
+          else if (index == 1) {
+            Share.share(
+              'https://example.com/photo-details',
+              subject: 'Assunto'
+            );
+          }
+          else if (index == 2) {
             Modular.to.pushNamed(Routes.details + Routes.commentsPhoto);
-            break;
-        }
-      },
+          }
+        },
 
-      indicatorColor: Theme.of(context).primaryColor,
-      selectedIndex: currentPageIndex,
-      destinations: const <Widget>[
-        NavigationDestination(
-          icon: Icon(Icons.map),
-          label: 'See on map',
-        ),
-        NavigationDestination(
-          icon: Badge(child: Icon(Icons.mail)),
-          label: 'Email',
-        ),
-        NavigationDestination(
-          icon: Badge(child: Icon(Icons.comment)),
-          label: 'Add comment',
-        ),
-      ],
+        indicatorColor: Theme.of(context).primaryColor,
+        selectedIndex: currentPageIndex,
+        destinations: const <Widget>[
+          NavigationDestination(
+            icon: Icon(Icons.map),
+            label: 'See on map',
+          ),
+          NavigationDestination(
+            icon: Badge(child: Icon(Icons.mail)),
+            label: 'Email',
+          ),
+          NavigationDestination(
+            icon: Badge(child: Icon(Icons.comment)),
+            label: 'Add comment',
+          ),
+        ],
     ),
-      body: SingleChildScrollView(
+      body: isLoading
+        ? Center(child: CircularProgressIndicator())
+        : SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 24.0),
           child: Column(
@@ -202,9 +228,16 @@ class _DetailsPhotoState extends State<DetailsPhoto> {
               ListView.separated(
                 shrinkWrap: true,
                 physics: NeverScrollableScrollPhysics(),
-                itemCount: 10,
+                itemCount: comment.length,
                 separatorBuilder: (context, index) => Divider(),
                 itemBuilder: (context, index) {
+                  final c = comment[index];
+                  if (c == null || c.isEmpty) {
+                    return Text(
+                      'No comments available.',
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600])
+                    );
+                  }
                   return ListTile(
                     leading: CircleAvatar(
                       backgroundColor:
@@ -216,14 +249,14 @@ class _DetailsPhotoState extends State<DetailsPhoto> {
                       ),
                     ),
                     title: Text(
-                      'User $index',
+                      c['name'] ?? 'User $index',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     subtitle: Text(
-                      'Comment from user $index goes here.',
+                      c['body'] ?? 'No comment text available.',
                       style: TextStyle(fontSize: 12),
                     ),
                   );

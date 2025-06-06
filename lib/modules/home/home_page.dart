@@ -37,7 +37,6 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         isLoading = false;
       });
-      print('Erro ao buscar fotos: $e');
     }
   }
 
