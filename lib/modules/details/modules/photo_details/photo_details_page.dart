@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:signals_flutter/signals_flutter.dart';
 import 'package:photo/core/network/api_service.dart';
 import 'package:photo/data/repositories/details/photo_details/photo_details_repositories.dart';
 import '../../../../core/core.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 
 class DetailsPhoto extends StatefulWidget {
@@ -14,17 +14,16 @@ class DetailsPhoto extends StatefulWidget {
   State<DetailsPhoto> createState() => _DetailsPhotoState();
 }
 class _DetailsPhotoState extends State<DetailsPhoto> {
-  int currentPageIndex = 0;
+  final currentPageIndex = signal(0);
+  final isLoading = signal(true);
   Map<String, dynamic> user = {};
   List<dynamic> comment = [];
-  bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
     getDetailsAndComments();
   }
-  
   // Fetch phot details and comments when the page is initialized
   void getDetailsAndComments() async {
     final apiClient = ApiClient();
@@ -34,17 +33,17 @@ class _DetailsPhotoState extends State<DetailsPhoto> {
     final int? id = args?['photoId'] as int?;
 
     if (id != null) {
-      setState(() => isLoading = true);
+      setState(() => isLoading.value = true);
       try {
         final details = await photoDetailsRepositories.getPhotoDetails(id);
         final comments = await photoDetailsRepositories.getPhotoComments(id);
         setState(() {
           user = details;
           comment = comments;
-          isLoading = false;
+          isLoading.value = false;
         });
       } catch (e) {
-        setState(() => isLoading = false);
+        setState(() => isLoading.value = false);
       }
     }
   }
@@ -61,25 +60,9 @@ class _DetailsPhotoState extends State<DetailsPhoto> {
       bottomNavigationBar: NavigationBar(
         onDestinationSelected: (int index) async {
           setState(() {
-            currentPageIndex = index;
+            currentPageIndex.value = index;
           });
           if (index == 0) {
-            // final lat = user['address']?['geo']?['lat'];
-            // final lng = user['address']?['geo']?['lng'];
-            // if (lat != null && lng != null) {
-            //   final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
-            //   if (await canLaunchUrl(url)) {
-            //     if (!mounted) return;
-            //     await launchUrl(url, mode: LaunchMode.externalApplication);
-            //   } else {
-            //     if (!mounted) return;
-            //     ScaffoldMessenger.of(context).showSnackBar(
-            //       SnackBar(content: Text('Não foi possível abrir o Maps')),
-            //     );
-            //   }
-            // } else {
-            //   if (!mounted) return;
-            // }
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Localização não disponível')),
             );
@@ -96,7 +79,7 @@ class _DetailsPhotoState extends State<DetailsPhoto> {
         },
 
         indicatorColor: Theme.of(context).primaryColor,
-        selectedIndex: currentPageIndex,
+        selectedIndex: currentPageIndex.value,
         destinations: const <Widget>[
           NavigationDestination(
             icon: Icon(Icons.map),
@@ -112,7 +95,7 @@ class _DetailsPhotoState extends State<DetailsPhoto> {
           ),
         ],
     ),
-      body: isLoading
+      body: isLoading.value
         ? Center(child: CircularProgressIndicator())
         : SingleChildScrollView(
         child: Padding(

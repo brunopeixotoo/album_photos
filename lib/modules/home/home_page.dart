@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:signals_flutter/signals_flutter.dart';
 import '../../../../core/core.dart';
 import '../../core/network/api_service.dart';
 import '../../../../data/repositories/home/home_repositories.dart';
@@ -15,13 +16,20 @@ class _HomePageState extends State<HomePage> {
   final TextEditingController _search = TextEditingController();
   List<dynamic> photos = [];
   String searchText = '';
-  bool isLoading = true;
+  final isLoading = signal(true);
 
   @override
   void initState() {
     super.initState();
     buscarFotos();
   }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+  
 
   void buscarFotos() async {
     final apiClient = ApiClient();
@@ -31,11 +39,11 @@ class _HomePageState extends State<HomePage> {
       final photosApi = await homeRepository.getPhotos();
       setState(() {
         photos = photosApi;
-        isLoading = false;
+        isLoading.value = false;
       });
     } catch (e) {
       setState(() {
-        isLoading = false;
+        isLoading.value = false;
       });
     }
   }
@@ -89,7 +97,7 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 12),
             Expanded(
-              child: isLoading
+              child: isLoading.value
                   ? const Center(child: CircularProgressIndicator())
                   : filteredPhotos.isEmpty
                       ? const Center(child: Text('Nenhuma foto encontrada.'))
@@ -121,7 +129,7 @@ class _HomePageState extends State<HomePage> {
                                     Routes.details + Routes.detailsPhoto,
                                     arguments: {
                                       'photoId': photo['id'],
-                                    }
+                                    },
                                   );
                                 },
                               ),
