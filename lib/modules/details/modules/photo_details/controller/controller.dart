@@ -1,0 +1,1 @@
+export 'photo_details_controller.dart';

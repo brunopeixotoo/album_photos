@@ -3,7 +3,8 @@ import 'package:flutter_modular/flutter_modular.dart';
 import 'package:signals_flutter/signals_flutter.dart';
 import '../../../../core/core.dart';
 import '../../core/network/api_service.dart';
-import '../../../../data/repositories/home/home_repositories.dart';
+import 'repositories/home_repositories.dart';
+import 'home_controller.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -14,14 +15,15 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final TextEditingController _search = TextEditingController();
-  List<dynamic> photos = [];
-  String searchText = '';
-  final isLoading = signal(true);
+  late final HomeController _controller;
 
   @override
   void initState() {
     super.initState();
-    buscarFotos();
+    final apiClient = ApiClient();
+    final homeRepository = HomeRepository(apiClient.client);
+    _controller = HomeController(homeRepository);
+    _controller.loadPhotos();
   }
 
   @override
@@ -29,32 +31,9 @@ class _HomePageState extends State<HomePage> {
     _search.dispose();
     super.dispose();
   }
-  
-
-  void buscarFotos() async {
-    final apiClient = ApiClient();
-    final homeRepository = HomeRepository(apiClient.client);
-
-    try {
-      final photosApi = await homeRepository.getPhotos();
-      setState(() {
-        photos = photosApi;
-        isLoading.value = false;
-      });
-    } catch (e) {
-      setState(() {
-        isLoading.value = false;
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    final filteredPhotos = photos.where((photo) {
-      final title = (photo['title'] ?? '').toString();
-      return title.toLowerCase().contains(searchText.toLowerCase());
-    }).toList();
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).primaryColor,
@@ -73,69 +52,74 @@ class _HomePageState extends State<HomePage> {
               decoration: InputDecoration(
                 labelText: 'Search by title',
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: _search.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          setState(() {
-                            _search.clear();
-                            searchText = '';
-                          });
-                        },
-                      )
-                    : null,
+                suffixIcon: Watch<Widget>((context) {
+                  if (_controller.searchText.value.isNotEmpty) {
+                    return IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _search.clear();
+                        _controller.clearSearch();
+                      },
+                    );
+                  }
+                  return const SizedBox.shrink();
+                }),
                 filled: true,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onChanged: (value) {
-                setState(() {
-                  searchText = value;
-                });
-              },
+              onChanged: _controller.updateSearchText,
             ),
             const SizedBox(height: 12),
             Expanded(
-              child: isLoading.value
-                  ? const Center(child: CircularProgressIndicator())
-                  : filteredPhotos.isEmpty
-                      ? const Center(child: Text('Nenhuma foto encontrada.'))
-                      : ListView.separated(
-                          itemCount: filteredPhotos.length,
-                          separatorBuilder: (context, index) => const Divider(),
-                          itemBuilder: (context, index) {
-                            final photo = filteredPhotos[index];
-                            return Card(
-                              elevation: 2,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                backgroundColor: Theme.of(context).primaryColor,
-                                child:
-                                  const Icon(Icons.photo, color: Colors.white),
-                              ),
-                                title: Text(
-                                  photo['title'] ?? '',
-                                  style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500),
-                                ),
-                                subtitle: Text('ID: ${photo['id'] ?? ''}'),
-                                onTap: () {
-                                  Modular.to.pushNamed(
-                                    Routes.details + Routes.detailsPhoto,
-                                    arguments: {
-                                      'photoId': photo['id'],
-                                    },
-                                  );
-                                },
-                              ),
-                            );
-                          },
+              child: Watch<Widget>((context) {
+                if (_controller.isLoading.value) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final filteredPhotos = _controller.filteredPhotos;
+                
+                if (filteredPhotos.isEmpty) {
+                  return const Center(child: Text('Nenhuma foto encontrada.'));
+                }
+
+                return ListView.separated(
+                  itemCount: filteredPhotos.length,
+                  separatorBuilder: (context, index) => const Divider(),
+                  itemBuilder: (context, index) {
+                    final photo = filteredPhotos[index];
+                    return Card(
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Theme.of(context).primaryColor,
+                          child: const Icon(Icons.photo, color: Colors.white),
                         ),
+                        title: Text(
+                          photo['title'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500
+                          ),
+                        ),
+                        subtitle: Text('ID: ${photo['id'] ?? ''}'),
+                        onTap: () {
+                          Modular.to.pushNamed(
+                            Routes.details + Routes.detailsPhoto,
+                            arguments: {
+                              'photoId': photo['id'],
+                            },
+                          );
+                        },
+                      ),
+                    );
+                  },
+                );
+              }),
             ),
           ],
         ),

@@ -1,10 +1,55 @@
 import 'package:flutter/material.dart';
+import 'package:photo/modules/details/modules/comments/controller/comments_controller.dart';
+import 'package:photo/modules/details/modules/comments/repositories/comments_repositories.dart';
+import 'package:photo/core/network/api_service.dart';
+import 'package:flutter_modular/flutter_modular.dart';
+import 'package:signals_flutter/signals_flutter.dart';
 
-class CommentsPhoto extends StatelessWidget {
-  final TextEditingController titleController = TextEditingController();
-  final TextEditingController commentController = TextEditingController();
+class CommentsPhoto extends StatefulWidget {
+  const CommentsPhoto({super.key});
 
-  CommentsPhoto({super.key});
+  @override
+  State<CommentsPhoto> createState() => _CommentsPhotoState();
+}
+
+class _CommentsPhotoState extends State<CommentsPhoto> {
+  late final CommentsController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final apiClient = ApiClient();
+    final commentsRepository = CommentsRepositories(apiClient.client);
+    _controller = CommentsController(commentsRepository);
+
+    final args = Modular.args.data as Map<String, dynamic>;
+    final photoId = args['photoId'] as int;
+    _controller.setPhotoId(photoId);
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(fontSize: 14),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleSave() async {
+    final success = await _controller.saveComment();
+    if (!mounted) return;
+
+    if (success) {
+      _showSnackBar('Comment saved!');
+      _controller.clearForm();
+    } else {
+      _showSnackBar('Write a title and comment!');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,7 +65,7 @@ class CommentsPhoto extends StatelessWidget {
       body: Center(
         child: SingleChildScrollView(
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: 400),
+            constraints: const BoxConstraints(maxWidth: 400),
             child: Card(
               elevation: 4,
               shape: RoundedRectangleBorder(
@@ -42,19 +87,19 @@ class CommentsPhoto extends StatelessWidget {
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 20),
-                      TextFormField(
-                        controller: titleController,
+                      Watch((context) => TextFormField(
+                        onChanged: _controller.updateTitle,
                         decoration: InputDecoration(
                           labelText: "Title",
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10.0),
                           ),
-                          prefixIcon: Icon(Icons.title),
+                          prefixIcon: const Icon(Icons.title),
                         ),
-                      ),
+                      )),
                       const SizedBox(height: 16),
-                      TextFormField(
-                        controller: commentController,
+                      Watch((context) => TextFormField(
+                        onChanged: _controller.updateComment,
                         minLines: 3,
                         maxLines: 5,
                         decoration: InputDecoration(
@@ -62,30 +107,27 @@ class CommentsPhoto extends StatelessWidget {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10.0),
                           ),
-                          prefixIcon: Icon(Icons.comment),
+                          prefixIcon: const Icon(Icons.comment),
                         ),
-                      ),
+                      )),
                       const SizedBox(height: 24),
-                      ElevatedButton.icon(
-                        onPressed: () {
-                          String title = titleController.text;
-                          String comment = commentController.text;
-                          if (title.isNotEmpty && comment.isNotEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Comment save!', style: TextStyle(fontSize: 14))),
-                            );
-                            titleController.clear();
-                            commentController.clear();
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Write a title and comment!', style: TextStyle(fontSize: 14),)),
-                            );
-                          }
-                        },
-                        icon: Icon(Icons.save),
+                      Watch((context) => ElevatedButton.icon(
+                        onPressed: _controller.isLoading.value
+                            ? null
+                            : _handleSave,
+                        icon: _controller.isLoading.value
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Icon(Icons.save),
                         label: Text(
-                          'Save',
-                          style: TextStyle(fontSize: 16),
+                          _controller.isLoading.value ? 'Saving...' : 'Save',
+                          style: const TextStyle(fontSize: 16),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).primaryColor,
@@ -95,7 +137,7 @@ class CommentsPhoto extends StatelessWidget {
                           ),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
-                      ),
+                      )),
                     ],
                   ),
                 ),
